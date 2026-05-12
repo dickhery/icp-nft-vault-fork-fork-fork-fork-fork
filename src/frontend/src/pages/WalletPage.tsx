@@ -28,6 +28,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useBackend } from "@/hooks/use-backend";
 import { isLowCyclesError } from "@/lib/cycles";
 import { previewOwnedNFTsFromCollections } from "@/lib/external-nft-preview";
+import { transferOwnedExternalNFT } from "@/lib/external-nft-transfer";
 import { resolveImageUrl } from "@/lib/media";
 import type {
   ActiveListingDetail,
@@ -161,6 +162,31 @@ function statsFromNFTs(nfts: Array<WalletNFT>): NFTStats {
   };
 }
 
+function isRegisteredExternalSendable(
+  nft: WalletNFT,
+  collection?: Collection,
+): collection is Collection {
+  return (
+    nft.location === "Registered" &&
+    collection?.kind === "External" &&
+    collection.standard.__kind__ !== "Other"
+  );
+}
+
+function canSendNFT(
+  nft: WalletNFT,
+  collection: Collection | undefined,
+  isListed: boolean,
+): boolean {
+  if (isListed) return false;
+  if (nft.location !== "Registered") return true;
+  return isRegisteredExternalSendable(nft, collection);
+}
+
+interface SyncCapableActor {
+  syncUserNFTs?: () => Promise<unknown>;
+}
+
 // ── CopyField ─────────────────────────────────────────────────────────────
 
 interface CopyFieldProps {
@@ -219,6 +245,7 @@ interface SendNFTModalProps {
 
 function SendNFTModal({ open, onClose, nft, collection }: SendNFTModalProps) {
   const { actor } = useBackend();
+  const { identity, principal } = useAuth();
   const queryClient = useQueryClient();
   const [recipient, setRecipient] = useState("");
   const [recipientError, setRecipientError] = useState("");
@@ -237,20 +264,45 @@ function SendNFTModal({ open, onClose, nft, collection }: SendNFTModalProps) {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!actor) throw new Error("Not connected");
       const err = validateRecipient(recipient);
       if (err) throw new Error(err);
       const recipientPrincipal = Principal.fromText(recipient.trim());
+
+      if (isRegisteredExternalSendable(nft, collection)) {
+        if (!identity || !principal) throw new Error("Not connected");
+        const message = await transferOwnedExternalNFT({
+          collection,
+          nft,
+          owner: principal,
+          recipient: recipientPrincipal,
+          identity,
+        });
+        const actorWithSync = actor as SyncCapableActor | null;
+        if (typeof actorWithSync?.syncUserNFTs === "function") {
+          try {
+            await actorWithSync.syncUserNFTs();
+          } catch (syncError) {
+            console.warn(
+              "[sendNFT] wallet sync after transfer failed",
+              syncError,
+            );
+          }
+        }
+        return message;
+      }
+
+      if (!actor) throw new Error("Not connected");
       const result = await actor.sendNFT(nft.id, recipientPrincipal);
       if (result.__kind__ === "err") {
         throw new Error(result.err);
       }
       return result.ok;
     },
-    onSuccess: (txId) => {
-      toast.success(`NFT sent successfully! Transaction: ${txId}`);
+    onSuccess: (message) => {
+      toast.success(message || "NFT sent successfully");
       queryClient.invalidateQueries({ queryKey: ["userNFTs"] });
       queryClient.invalidateQueries({ queryKey: ["userStats"] });
+      queryClient.invalidateQueries({ queryKey: ["externalOwnedNFTs"] });
       setRecipient("");
       setRecipientError("");
       onClose();
@@ -1499,6 +1551,9 @@ function CollectionSection({
   const canImportNFT = collection?.kind === "External";
   const isNFTListed = (nft: WalletNFT) =>
     listedNFTKeys.has(nftKey(nft.collectionId, nft.tokenId));
+  const collectionOrUndefined = collection ?? undefined;
+  const isSendable = (nft: WalletNFT) =>
+    canSendNFT(nft, collectionOrUndefined, isNFTListed(nft));
 
   return (
     <motion.section
@@ -1628,8 +1683,8 @@ function CollectionSection({
               }}
               data-ocid={`wallet.send_nft_button.${sectionIndex * 100 + i + 1}`}
               aria-label={`Send ${nft.metadata.name ?? `NFT #${nft.tokenId}`}`}
-              disabled={nft.location === "Registered" || isNFTListed(nft)}
-              hidden={nft.location === "Registered" || isNFTListed(nft)}
+              disabled={!isSendable(nft)}
+              hidden={!isSendable(nft)}
             >
               <Send className="w-3 h-3" />
               Send
@@ -1668,12 +1723,12 @@ function CollectionSection({
             ) ?? 0n
           }
           onSend={
-            detailNft.location === "Registered" || isNFTListed(detailNft)
-              ? undefined
-              : () => {
+            isSendable(detailNft)
+              ? () => {
                   setDetailNft(null);
                   setSendNft(detailNft);
                 }
+              : undefined
           }
         />
       )}
