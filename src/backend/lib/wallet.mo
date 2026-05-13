@@ -798,20 +798,27 @@ module {
             var previews : [Types.WalletNFT] = [];
             for (tokenIndex in tokenIndices.values()) {
               let tokenIdentifier = extTokenIdentifier(collection.canisterId, tokenIndex);
-              let metadata = await* fetchEXTMetadata(canister, collection.canisterId, tokenIdentifier, tokenIndex, collection.name);
-              previews := Array.concat<Types.WalletNFT>(
-                previews,
-                [
-                  buildPreviewNFT(
-                    owner,
-                    collection.id,
-                    tokenIdentifier,
-                    metadata,
-                    location,
-                    tokenIndex.toNat(),
-                  ),
-                ],
-              );
+              let ownership = await* isEXTOwnedByAnyAccount(canister, tokenIdentifier, [accountIdHex, principalHex]);
+              let shouldInclude = switch (ownership) {
+                case (#ok(false)) false;
+                case (_) true;
+              };
+              if (shouldInclude) {
+                let metadata = await* fetchEXTMetadata(canister, collection.canisterId, tokenIdentifier, tokenIndex, collection.name);
+                previews := Array.concat<Types.WalletNFT>(
+                  previews,
+                  [
+                    buildPreviewNFT(
+                      owner,
+                      collection.id,
+                      tokenIdentifier,
+                      metadata,
+                      location,
+                      tokenIndex.toNat(),
+                    ),
+                  ],
+                );
+              };
             };
             #ok(previews);
           };
@@ -1606,6 +1613,52 @@ module {
       case (?#err(error)) #err(extCommonErrorToText(error));
       case null #err("EXT bearer method not available");
     };
+  };
+
+  func isEXTOwnedByAnyAccount(
+    canister : NFTStandards.EXTActor,
+    tokenIdentifier : Text,
+    accountIds : [Text],
+  ) : async* { #ok : Bool; #err : Text } {
+    switch (await* fetchEXTOwnerAccountId(canister, tokenIdentifier)) {
+      case (#ok(ownerAccountId)) #ok(textArrayContains(accountIds, ownerAccountId));
+      case (#err(_)) {
+        var lastError : ?Text = null;
+        var sawBalanceResult = false;
+        for (accountId in accountIds.values()) {
+          switch (await* fetchEXTBalance(canister, tokenIdentifier, accountId)) {
+            case (#ok(balance)) {
+              sawBalanceResult := true;
+              if (balance > 0) {
+                return #ok(true);
+              };
+            };
+            case (#err(message)) {
+              if (not sawBalanceResult) {
+                lastError := ?message;
+              };
+            };
+          };
+        };
+        if (sawBalanceResult) {
+          #ok(false);
+        } else {
+          switch (lastError) {
+            case null #ok(false);
+            case (?message) #err(message);
+          };
+        };
+      };
+    };
+  };
+
+  func textArrayContains(values : [Text], target : Text) : Bool {
+    for (value in values.values()) {
+      if (value == target) {
+        return true;
+      };
+    };
+    false;
   };
 
   func fetchEXTBalance(

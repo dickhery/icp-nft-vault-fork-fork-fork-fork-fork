@@ -9,6 +9,15 @@ type ExtActor = {
   tokens?: (accountId: string) => Promise<unknown>;
   ext_metadata?: (tokenId: string) => Promise<unknown>;
   metadata?: (tokenId: string) => Promise<unknown>;
+  ext_bearer?: (tokenId: string) => Promise<unknown>;
+  bearer?: (tokenId: string) => Promise<unknown>;
+  ext_balance?: (request: ExtBalanceRequest) => Promise<unknown>;
+  balance?: (request: ExtBalanceRequest) => Promise<unknown>;
+};
+
+type ExtBalanceRequest = {
+  token: string;
+  user: { address: string } | { principal: Principal };
 };
 
 type Dip721Actor = {
@@ -90,6 +99,8 @@ async function previewExtNFTs(
   const nfts: Array<WalletNFT> = [];
   for (const tokenIndex of Array.from(tokenIndices).sort((a, b) => a - b)) {
     const tokenId = extTokenIdentifier(collection.canisterId, tokenIndex);
+    const ownership = await extTokenOwnership(actor, tokenId, accountIds);
+    if (ownership === false) continue;
     const metadata = await extMetadata(actor, collection, tokenId, tokenIndex);
     nfts.push(walletPreview(collection, owner, tokenId, metadata, tokenIndex));
   }
@@ -185,6 +196,60 @@ function extTokenIndicesFromResult(result: unknown): Array<number> {
       return Number(entry);
     })
     .filter((value) => Number.isInteger(value) && value >= 0);
+}
+
+async function extTokenOwnership(
+  actor: ExtActor,
+  tokenId: string,
+  accountIds: Array<string>,
+): Promise<boolean | null> {
+  const bearer =
+    extOkText(await callOptional(() => actor.ext_bearer?.(tokenId))) ??
+    extOkText(await callOptional(() => actor.bearer?.(tokenId)));
+  if (bearer) {
+    const normalizedBearer = bearer.toLowerCase();
+    return accountIds.some(
+      (accountId) => normalizedBearer === accountId.toLowerCase(),
+    );
+  }
+
+  const balances = await Promise.all(
+    accountIds.map((accountId) => extBalance(actor, tokenId, accountId)),
+  );
+  const knownBalances = balances.filter((balance) => balance !== null);
+  if (knownBalances.length === 0) return null;
+  return knownBalances.some((balance) => balance > 0n);
+}
+
+async function extBalance(
+  actor: ExtActor,
+  tokenId: string,
+  accountId: string,
+): Promise<bigint | null> {
+  const request: ExtBalanceRequest = {
+    token: tokenId,
+    user: { address: accountId },
+  };
+  return (
+    extOkNat(await callOptional(() => actor.ext_balance?.(request))) ??
+    extOkNat(await callOptional(() => actor.balance?.(request)))
+  );
+}
+
+function extOkText(result: unknown): string | null {
+  if (!result || typeof result !== "object" || !("ok" in result)) return null;
+  const ok = (result as { ok: unknown }).ok;
+  return typeof ok === "string" && ok.trim() ? ok.trim() : null;
+}
+
+function extOkNat(result: unknown): bigint | null {
+  if (!result || typeof result !== "object" || !("ok" in result)) return null;
+  const ok = (result as { ok: unknown }).ok;
+  try {
+    return BigInt(ok as bigint | number | string);
+  } catch {
+    return null;
+  }
 }
 
 async function extMetadata(
@@ -640,6 +705,14 @@ const extIdlFactory: IDL.InterfaceFactory = ({ IDL }) => {
       thumbnail: IDL.Text,
     }),
   });
+  const User = IDL.Variant({
+    principal: IDL.Principal,
+    address: IDL.Text,
+  });
+  const BalanceRequest = IDL.Record({
+    token: IDL.Text,
+    user: User,
+  });
   return IDL.Service({
     tokens_ext: IDL.Func(
       [IDL.Text],
@@ -670,6 +743,26 @@ const extIdlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     metadata: IDL.Func(
       [IDL.Text],
       [IDL.Variant({ ok: ExtMetadata, err: CommonError })],
+      ["query"],
+    ),
+    ext_bearer: IDL.Func(
+      [IDL.Text],
+      [IDL.Variant({ ok: IDL.Text, err: CommonError })],
+      ["query"],
+    ),
+    bearer: IDL.Func(
+      [IDL.Text],
+      [IDL.Variant({ ok: IDL.Text, err: CommonError })],
+      ["query"],
+    ),
+    ext_balance: IDL.Func(
+      [BalanceRequest],
+      [IDL.Variant({ ok: IDL.Nat, err: CommonError })],
+      ["query"],
+    ),
+    balance: IDL.Func(
+      [BalanceRequest],
+      [IDL.Variant({ ok: IDL.Nat, err: CommonError })],
       ["query"],
     ),
   });
