@@ -1,5 +1,5 @@
-import { j as jsxRuntimeExports, a as cn } from "./index-BceDr-ms.js";
-import { r as resolveImageUrl } from "./media-BZFEM87G.js";
+import { j as jsxRuntimeExports, a as cn } from "./index-Bydh9cob.js";
+import { r as resolveImageUrl } from "./media-DGSkS1je.js";
 function getStandardLabel(standard) {
   if (standard.__kind__ === "EXT") return "EXT";
   if (standard.__kind__ === "DIP721") return "DIP-721";

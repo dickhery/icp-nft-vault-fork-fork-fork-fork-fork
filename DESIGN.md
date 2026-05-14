@@ -1,17 +1,17 @@
 # Design Brief: ICP NFT Wallet & Marketplace
 
 ## Aesthetic & Tone
-Premium crypto-native dark platform. Luxury tech aesthetic with authoritative, professional voice. Feels like a high-end NFT marketplace (Rarible, Foundation). Deep immersion, not minimalist. Focus on trust and clarity over decoration.
+High-tech cyberpunk terminal aesthetic. Neon green on deep dark backgrounds — feels like a hacker's dashboard or a cutting-edge crypto protocol UI. Electric, authoritative, and precise. Think Bloomberg terminal meets DeFi. Green signifies growth, security, and machine intelligence.
 
 ## Color Palette
 
 | Token | Light L | Light C | Light H | Dark L | Dark C | Dark H | Purpose |
 |-------|---------|---------|---------|--------|--------|--------|---------|
-| Primary | 0.55 | 0.12 | 240 | 0.68 | 0.18 | 240 | Cool blue, CTA, primary buttons |
-| Secondary | 0.65 | 0.15 | 280 | 0.72 | 0.20 | 280 | Purple-blue, secondary UI |
-| Accent | 0.62 | 0.2 | 290 | 0.7 | 0.22 | 290 | Electric violet, NFT highlights, price badges |
-| Background | 0.95 | — | — | 0.08 | — | — | Light neutral / deep near-black |
-| Card | 0.97 | — | — | 0.12 | — | — | Elevated surfaces, NFT display |
+| Primary | 0.52 | 0.18 | 145 | 0.72 | 0.24 | 142 | Vibrant green, CTA, primary buttons |
+| Secondary | 0.60 | 0.14 | 160 | 0.30 | 0.08 | 155 | Teal-green, secondary UI |
+| Accent | 0.65 | 0.28 | 142 | 0.80 | 0.32 | 142 | Neon electric green, NFT highlights, price badges |
+| Background | 0.95 | — | — | 0.06 | 0.01 | 145 | Light neutral / deep near-black with green tint |
+| Card | 0.97 | — | — | 0.10 | 0.02 | 145 | Elevated surfaces, NFT display |
 | Success | — | 0.22 | 120 | — | 0.22 | 120 | Transaction complete |
 
 ## Typography
@@ -40,10 +40,11 @@ Desktop: 8px grid (16px, 24px, 32px). Card padding: 16px. Gap between cards: 20p
 Smooth default: `transition-smooth` (0.3s ease-in-out). Entrance: fade-in + scale-up. Hover: glow intensify, no bounce.
 
 ## Constraints
-- No rainbow palettes or color chaos. Accent violet + primary blue only.
+- No rainbow palettes or color chaos. Neon green accent + primary green only.
 - Cards never float or have deep shadows — depth is via color + glows only.
 - Price typography always in accent color, never muted.
 - Do not exceed 3 font sizes across the app (display, body, small).
+- Dark mode: backgrounds must retain green tint (H145) — never pure neutral black.
 
 ## Signature Detail
-NFT cards with electric violet glow overlay on hover. Feels exclusive, premium, like viewing rare digital art. Accent color commands attention on prices and bid indicators, reinforcing marketplace value.
+NFT cards with neon electric green glow on hover — like a terminal cursor or a live data feed lighting up. In dark mode, the deep green-tinted backgrounds + bright neon accent create a cyberpunk hacker aesthetic. Accent color commands attention on prices and bid indicators; every price looks like a live market feed.
